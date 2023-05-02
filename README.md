@@ -15,11 +15,6 @@ run this command as root <br>
 ```bash <(curl -Ls https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install.sh)```
 
 # WTH is happening
-as mentioned in the script you can read the refrences to this script at
-* [link1](https://www.linuxbabe.com/security/modsecurity-nginx-debian-ubuntu)
-* [link2](https://github.com/openresty/headers-more-nginx-module#installation)
-
-this script will do thease steps (soo simple)
 * remove the old Nginx and install new one with the sources from apt
 * clone [modsecurity](https://github.com/SpiderLabs/ModSecurity)
 * build modsecurity with half of system cpu cores 
@@ -29,9 +24,15 @@ this script will do thease steps (soo simple)
 * clone [ModSecurity CRS](https://github.com/coreruleset/coreruleset) and add it to ModSecurity
 * add ModSecurity to Nginx conf
 * set nginx on hold so hopefully nothing breaks in future
-* in the end a command will be shown so you can link all configurations in the conf directory to the main Nginx configuration
 
+# Lazy tip
 if your too lazy to copy/paste all the configurations to separate paths in /etc/nginx (like i am) <br>
-you can fill them in the conf directory and then by running the linker.sh script a soft link will be created at needed paths at /etc/nginx
+after cloning the repo go the conf directory the fill you configurations in needed files
+then just run linker.sh and it will create a soft link at needed paths in /etc/nginx
 
-Hope you enjoy
+# Refrences
+* [link1](https://www.linuxbabe.com/security/modsecurity-nginx-debian-ubuntu)
+* [link2](https://github.com/openresty/headers-more-nginx-module#installation)
+
+
+### Hope you enjoy

@@ -6,7 +6,6 @@
 nginx_version="nginx-$(apt-cache policy nginx | sed -nr 's/^.*Candidate: (.*)-.*$/\1/p')"
 os_id=$(awk -F= '/^ID=/{print $2}' /etc/os-release)
 cpu_count=$(printf '%.*f\n' 0 "$((($(grep -c ^processor /proc/cpuinfo)) / 2))")
-SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 echo "Nginx:      " $nginx_version
 echo "OS:         " $os_id
 echo "Cores Used: " $cpu_count
@@ -170,6 +169,4 @@ echo ""
 echo "************************************************************"
 echo "Nginx+ModSecurity+CRS+HeaderMore Installed"
 echo "************************************************************"
-echo ""
-echo "to run linker you can run the command below"
-echo "  sh $SCRIPTPATH/conf/linker.sh"
+
