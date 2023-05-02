@@ -12,7 +12,7 @@ Find the line that begins with # deb-src and uncomment it and the run
 
 # Easy Install
 run this command as root <br>
-```bash <(curl -L https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install.sh)```
+```bash <(curl -Ls https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install.sh)```
 
 # WTH is happening
 as mentioned in the script you can read the refrences to this script at
