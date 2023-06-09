@@ -1,6 +1,6 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
-# linker.sh
+# linker
 
 SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
@@ -19,3 +19,5 @@ ln -sf $SCRIPTPATH/html/* /var/www/html/
 
 
 echo "linker finished"
+
+
