@@ -12,7 +12,7 @@ Find the line that begins with # deb-src and uncomment it and the run
 
 # Easy Install
 run this command <br>
-```sudo bash <(curl -Ls https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install)```
+```bash -c "$(curl -s "https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install")"```
 
 # WTH is happening
 * remove the old Nginx and install new one with the sources from apt
