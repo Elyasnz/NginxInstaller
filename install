@@ -102,10 +102,10 @@ echo "************************************************************"
 echo "cloning Header-More"
 echo "************************************************************"
 echo ""
-sudo wget https://github.com/openresty/headers-more-nginx-module/archive/refs/tags/v0.33.tar.gz -P /etc/nginx/src/
-sudo tar xf /etc/nginx/src/v0.33.tar.gz -C /etc/nginx/src/
-sudo mv /etc/nginx/src/headers-more-nginx-module-0.33 /etc/nginx/src/header-more
-sudo rm /etc/nginx/src/v0.33.tar.gz
+sudo wget https://github.com/openresty/headers-more-nginx-module/archive/refs/tags/v0.34.tar.gz -P /etc/nginx/src/
+sudo tar xf /etc/nginx/src/v0.34.tar.gz -C /etc/nginx/src/
+sudo mv /etc/nginx/src/headers-more-nginx-module-0.34 /etc/nginx/src/header-more
+sudo rm /etc/nginx/src/v0.34.tar.gz
 # endregion
 
 # region make nginx
