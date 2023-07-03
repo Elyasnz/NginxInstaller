@@ -11,8 +11,8 @@ Find the line that begins with # deb-src and uncomment it and the run
 ```sudo apt update```
 
 # Easy Install
-run this command as root <br>
-```bash <(curl -Ls https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install.sh)```
+run this command <br>
+```bash -c "$(curl -s "https://raw.githubusercontent.com/Elyasnz/NginxInstaller/main/install")"```
 
 # WTH is happening
 * remove the old Nginx and install new one with the sources from apt
@@ -28,7 +28,7 @@ run this command as root <br>
 # Lazy tip
 if your too lazy to copy/paste all the configurations to separate paths in /etc/nginx (like i am) <br>
 after cloning the repo go the conf directory the fill you configurations in needed files
-then just run linker.sh and it will create a soft link at needed paths in /etc/nginx
+then just run ```linker``` and it will create a soft link at needed paths in /etc/nginx
 
 # Refrences
 * [link1](https://www.linuxbabe.com/security/modsecurity-nginx-debian-ubuntu)
