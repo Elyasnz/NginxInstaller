@@ -11,8 +11,7 @@ sudo ln -sf $SCRIPTPATH/custom-configs /etc/nginx/custom-configs
 sudo ln -sf $SCRIPTPATH/nginx.conf /etc/nginx/nginx.conf
 sudo ln -sf $SCRIPTPATH/sites/*.conf /etc/nginx/sites-available/
 sudo ln -sf $SCRIPTPATH/sites/*.conf /etc/nginx/sites-enabled/
-sudo ln -sf $SCRIPTPATH/ssl.crt /etc/nginx/ssl.crt
-sudo ln -sf $SCRIPTPATH/ssl.key /etc/nginx/ssl.key
+sudo ln -sf $SCRIPTPATH/ssl /etc/nginx/ssl
 sudo ln -sf $SCRIPTPATH/modsec/bad-user-agents.txt /etc/nginx/modsec/bad-user-agents.txt
 sudo ln -sf $SCRIPTPATH/modsec/modsecurity.conf /etc/nginx/modsec/modsecurity.conf
 sudo ln -sf $SCRIPTPATH/html/* /var/www/html/
