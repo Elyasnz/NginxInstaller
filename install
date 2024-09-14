@@ -26,8 +26,9 @@ VERSION_HEADERS_MORE='0.37'
 
 PREFIX_LUAJIT="${PREFIX_NGINX}/libs/luajit-${VERSION_LUAJIT}"
 PREFIX_MODSECURITY="${PREFIX_NGINX}/libs/modsecurity-${VERSION_MODSECURITY}"
-PREFIX_DIR_DOWNLOAD="${PREFIX_NGINX}/install/downloads"
-PREFIX_DIR_BUILD="${PREFIX_NGINX}/install/build"
+PREFIX_DIR_INSTALL="${PREFIX_NGINX}/install"
+PREFIX_DIR_DOWNLOAD="${PREFIX_DIR_INSTALL}/downloads"
+PREFIX_DIR_BUILD="${PREFIX_DIR_INSTALL}/build"
 
 _PATH_NGX_DEVEL_KIT="${PREFIX_DIR_BUILD}/ngx_devel_kit-${VERSION_NGX_DEVEL_KIT}"
 _PATH_LUA_NGINX_MODULE="${PREFIX_DIR_BUILD}/lua-nginx-module-${VERSION_LUA_NGINX_MODULE}"
@@ -329,7 +330,13 @@ systemctl daemon-reload
 
 # endregion
 
-
 notice "Build complete. to start nginx run sudo systemctl start nginx"
 
+# region Remove installation files
+notice "Removing Installation files..."
+notice "Proceed?"
+read -n1
 
+rm -rf $PREFIX_DIR_INSTALL
+
+# endregion
