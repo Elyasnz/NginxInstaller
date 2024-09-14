@@ -96,8 +96,7 @@ mkdir -pv "$PREFIX_NGINX" || die "Cannot create install directory"
 mkdir -pv "$PREFIX_DIR_DOWNLOAD" || die "Cannot create download directory"
 mkdir -pv "$PREFIX_DIR_BUILD" || die "Cannot create build directory"
 mkdir -pv "${PREFIX_NGINX}/tmp" || die "Cannot create nginx tmp directory"
-mkdir -pv "${PREFIX_NGINX}/modules" || die "Cannot create nginx modules directory"
-mkdir -pv "${PREFIX_NGINX}/modsec" || die "Cannot create nginx modsec directory"
+mkdir -pv "${PREFIX_NGINX}/conf/modsec" || die "Cannot create nginx modsec directory"
 
 notice "Installing dependencies..."
 apt-get install dpkg-dev gcc make build-essential autoconf automake libtool libcurl4-openssl-dev \
@@ -206,7 +205,6 @@ cd "${PREFIX_DIR_BUILD}/nginx-release-${VERSION_NGINX}" || die
   --with-stream_ssl_module \
   --with-stream_ssl_preread_module \
   --with-ld-opt="-Wl,-z,origin -Wl,-rpath,'\$\$ORIGIN'/../luajit-${VERSION_LUAJIT}/lib" \
-  --modules-path="${PREFIX_NGINX}/modules" \
   --with-http_random_index_module \
   --with-http_image_filter_module \
   --with-http_xslt_module \
@@ -239,21 +237,21 @@ LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to insta
 
 # region ModSecurity rules
 notice "Configuring modsecurity crs rules"
-cp "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}/unicode.mapping" "${PREFIX_NGINX}/modsec/" &&
-  cp "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}/modsecurity.conf-recommended" "${PREFIX_NGINX}/modsec/modsecurity.conf" || die "Cant copy modsecurity config files from build"
-echo "Include ${PREFIX_NGINX}/modsec/modsecurity.conf" >"${PREFIX_NGINX}/modsec/main.conf" || die "Cant create modsec main.conf"
+cp "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}/unicode.mapping" "${PREFIX_NGINX}/conf/modsec/" &&
+  cp "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}/modsecurity.conf-recommended" "${PREFIX_NGINX}/conf/modsec/modsecurity.conf" || die "Cant copy modsecurity config files from build"
+echo "Include ${PREFIX_NGINX}/conf/modsec/modsecurity.conf" >"${PREFIX_NGINX}/conf/modsec/main.conf" || die "Cant create modsec main.conf"
 
-mv "${PREFIX_DIR_BUILD}/coreruleset-${VERSION_MODSECURITY_CRS}" "${PREFIX_NGINX}/modsec-crs" || die "Cant create modsec-crs directory"
-cd "${PREFIX_NGINX}/modsec-crs" || die "Cant create modsec-crs directory"
+mv "${PREFIX_DIR_BUILD}/coreruleset-${VERSION_MODSECURITY_CRS}" "${PREFIX_NGINX}/conf/modsec-crs" || die "Cant create modsec-crs directory"
+cd "${PREFIX_NGINX}/conf/modsec-crs" || die "Cant create modsec-crs directory"
 mv crs-setup.conf.example crs-setup.conf &&
   mv rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf.example rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf &&
   mv rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf.example rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf &&
-  echo "$(cat "${PREFIX_NGINX}/modsec/main.conf")
-Include ${PREFIX_NGINX}/modsec-crs/crs-setup.conf
-#Include ${PREFIX_NGINX}/modsec-crs/plugins/*-config.conf
-#Include ${PREFIX_NGINX}/modsec-crs/plugins/*-before.conf
-Include ${PREFIX_NGINX}/modsec-crs/rules/*.conf
-#Include ${PREFIX_NGINX}/modsec-crs/plugins/*-after.conf" >"${PREFIX_NGINX}/modsec/main.conf" || die "Cant create modsec-crs needed rules files"
+  echo "$(cat "${PREFIX_NGINX}/conf/modsec/main.conf")
+Include ${PREFIX_NGINX}/conf/modsec-crs/crs-setup.conf
+#Include ${PREFIX_NGINX}/conf/modsec-crs/plugins/*-config.conf
+#Include ${PREFIX_NGINX}/conf/modsec-crs/plugins/*-before.conf
+Include ${PREFIX_NGINX}/conf/modsec-crs/rules/*.conf
+#Include ${PREFIX_NGINX}/conf/modsec-crs/plugins/*-after.conf" >"${PREFIX_NGINX}/conf/modsec/main.conf" || die "Cant create modsec-crs needed rules files"
 
 # endregion
 
@@ -267,13 +265,13 @@ patch -p0 <<EOF
 
 
 +stream {
-+    lua_package_path '/usr/local/nginx/libs/luajit-2.1-20240815/lib/lua/5.1/?.lua;;';
++    lua_package_path '${PREFIX_LUAJIT}/lib/lua/5.1/?.lua;;';
 +}
 +
  http {
-+    lua_package_path '/usr/local/nginx/libs/luajit-2.1-20240815/lib/lua/5.1/?.lua;;';
++    lua_package_path '${PREFIX_LUAJIT}/lib/lua/5.1/?.lua;;';
 +    modsecurity on;
-+    modsecurity_rules_file /usr/local/nginx/modsec/main.conf;
++    modsecurity_rules_file '${PREFIX_NGINX}/conf/modsec/main.conf';
 +
      include       mime.types;
      default_type  application/octet-stream;
