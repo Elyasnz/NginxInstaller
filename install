@@ -1,172 +1,335 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# https://www.linuxbabe.com/security/modsecurity-nginx-debian-ubuntu
-# https://github.com/openresty/headers-more-nginx-module#installation
+# This script builds nginx with ModSecurity+CRS+HeaderMore+Lua support.
+# References :
+#   https://gist.github.com/riskiwah/b80d61541eea0094027cf31ae86b13f1
+#   https://www.linuxbabe.com/security/modsecurity-nginx-debian-ubuntu
+#   https://github.com/openresty/headers-more-nginx-module#installation
 
-nginx_version="nginx-$(sudo apt-cache policy nginx | sed -nr 's/^.*Candidate: (.*)-.*$/\1/p')"
-os_id=$(sudo awk -F= '/^ID=/{print $2}' /etc/os-release)
-cpu_count=$(printf '%.*f\n' 0 "$((($(sudo grep -c ^processor /proc/cpuinfo)) / 2))")
-echo "Nginx:      " $nginx_version
-echo "OS:         " $os_id
-echo "Cores Used: " $cpu_count
-
-
-if [ "$os_id" = "ubuntu" ]; then
-  echo "If you use Ubuntu 16.04, 18.04, 20.04, or 20.10, run the following commands to install the latest version of Nginx."
-  echo ""
-  echo "  sudo add-apt-repository ppa:ondrej/nginx-mainline -y && sudo apt update"
-  echo ""
-  echo "By default, only the binary repository is enabled. We also need to enable the source code repository in order to download Nginx source code. Edit the Nginx mainline repository file."
-  echo "  sudo nano /etc/apt/sources.list.d/ondrej-ubuntu-nginx-mainline-*.list"
-  echo "Find the line that begins with # deb-src and uncomment it and the run"
-  echo ""
-  echo "  sudo apt update"
-  echo ""
-  echo "would you like to continue?"
-  read -n1
-else
-  echo "Start?"
-  read -n1
+if [[ $(/usr/bin/id -u) -ne 0 ]]; then
+  echo "Must run as root user"
+  exit
 fi
 
-echo ""
-echo "************************************************************"
-echo "uninstalling current nginx version"
-echo "************************************************************"
-echo ""
-sudo systemctl stop nginx
-sudo apt --purge remove -y nginx* --allow-change-held-packages
-sudo rm -rf /etc/nginx
-sudo rm -rf /usr/share/nginx
-sudo rm -rf /var/log/nginx
+PREFIX_NGINX='/usr/local/nginx'
+VERSION_NGINX='1.26.0'
+VERSION_NGX_DEVEL_KIT='0.3.3'
+VERSION_LUA_NGINX_MODULE='0.10.27'
+VERSION_STREAM_LUA_NGINX_MODULE='0.0.15'
+VERSION_LUAJIT='2.1-20240815' # openresty
+VERSION_LUAJIT_MAJOR='2.1'
+VERSION_LUA_RESTY_CORE='0.1.29'
+VERSION_LUA_RESTY_LRUCACHE='0.14'
+VERSION_MODSECURITY='3.0.13'
+VERSION_MODSECURITY_CRS='4.6.0'
+VERSION_HEADERS_MORE='0.37'
 
-sudo mkdir -p /etc/nginx/src
-sudo mkdir -p /etc/nginx/modsec
-sudo mkdir -p /etc/nginx/modsec-crs
+PREFIX_LUAJIT="${PREFIX_NGINX}/libs/luajit-${VERSION_LUAJIT}"
+PREFIX_MODSECURITY="${PREFIX_NGINX}/libs/modsecurity-${VERSION_MODSECURITY}"
+PREFIX_DIR_DOWNLOAD="${PREFIX_NGINX}/install/downloads"
+PREFIX_DIR_BUILD="${PREFIX_NGINX}/install/build"
 
-echo ""
-echo "************************************************************"
-echo "installing nginx"
-echo "************************************************************"
-echo ""
-sudo apt install -y nginx nginx-core nginx-common nginx-full dpkg-dev gcc make build-essential autoconf automake libtool libcurl4-openssl-dev liblua5.3-dev libfuzzy-dev ssdeep gettext pkg-config libpcre3 libpcre3-dev libxml2 libxml2-dev libcurl4 libgeoip-dev libyajl-dev doxygen uuid-dev
+_PATH_NGX_DEVEL_KIT="${PREFIX_DIR_BUILD}/ngx_devel_kit-${VERSION_NGX_DEVEL_KIT}"
+_PATH_LUA_NGINX_MODULE="${PREFIX_DIR_BUILD}/lua-nginx-module-${VERSION_LUA_NGINX_MODULE}"
+_PATH_STREAM_LUA_NGINX_MODULE="${PREFIX_DIR_BUILD}/stream-lua-nginx-module-${VERSION_STREAM_LUA_NGINX_MODULE}"
+_PATH_MODSECURITY_NGINX_MODULE="${PREFIX_DIR_BUILD}/modsecurity-nginx"
+_PATH_HEADERS_MORE_MODULE="${PREFIX_DIR_BUILD}/headers-more-nginx-module-${VERSION_HEADERS_MORE}"
 
-# region Nginx source
-sudo mkdir -p /etc/nginx/src/nginx
-cd /etc/nginx/src/nginx/ || exit
-sudo apt source nginx
-cd $nginx_version || exit # just to check
-# endregion
+die() {
+  [ -n "$*" ] && printf "%b" "\033[31;1m${*}\033[0m\n" >&2
+  exit 1
+}
 
-# region ModSecurity
-echo ""
-echo "************************************************************"
-echo "cloning modsecurity"
-echo "************************************************************"
-echo ""
-sudo git clone --depth 1 -b v3/master --single-branch https://github.com/SpiderLabs/ModSecurity /etc/nginx/src/ModSecurity/
-cd /etc/nginx/src/ModSecurity/ || exit
+notice() {
+  printf "%b" "\033[37;1m${*}\033[0m\n"
+}
 
-sudo git submodule init
-sudo git submodule update
+dl() {
+  _name="$1"
+  _url="$2"
+  _filename="$3"
 
-echo ""
-echo "************************************************************"
-echo "bulding modsecurity"
-echo "************************************************************"
-echo ""
-sudo ./build.sh
-sudo ./configure
-sudo make -j"$cpu_count"
-sudo make install
+  rm -fv "${_filename}"
+  notice "Downloading ${_name}"
+  wget -q -c "${_url}" -O "${_filename}" || die "Failed to download ${_name}"
+}
 
-sudo cp /etc/nginx/src/ModSecurity/modsecurity.conf-recommended /etc/nginx/modsec/modsecurity.conf
-sudo echo 'Include /etc/nginx/modsec/modsecurity.conf' >/etc/nginx/modsec/main.conf
-sudo cp /etc/nginx/src/ModSecurity/unicode.mapping /etc/nginx/modsec/
-# endregion
-
-# region ModSecurity-Nginx
-echo ""
-echo "************************************************************"
-echo "cloning Modsecurity-Nginx"
-echo "************************************************************"
-echo ""
-sudo git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git /etc/nginx/src/ModSecurity-nginx/
-cd /etc/nginx/src/nginx/$nginx_version || exit
-sudo apt build-dep nginx -y
-# endregion
-
-# region Header-More source
-echo ""
-echo "************************************************************"
-echo "cloning Header-More"
-echo "************************************************************"
-echo ""
-sudo wget https://github.com/openresty/headers-more-nginx-module/archive/refs/tags/v0.34.tar.gz -P /etc/nginx/src/
-sudo tar xf /etc/nginx/src/v0.34.tar.gz -C /etc/nginx/src/
-sudo mv /etc/nginx/src/headers-more-nginx-module-0.34 /etc/nginx/src/header-more
-sudo rm /etc/nginx/src/v0.34.tar.gz
-# endregion
-
-# region make nginx
-echo ""
-echo "************************************************************"
-echo "building nginx"
-echo "************************************************************"
-echo ""
-cd /etc/nginx/src/nginx/$nginx_version || exit
-sudo ./configure --with-compat --add-dynamic-module=/etc/nginx/src/ModSecurity-nginx --add-dynamic-module=/etc/nginx/src/header-more --without-pcre2
-sudo make modules
-#endregion
-
-# region copy module files to main installation address
-sudo cp objs/ngx_http_modsecurity_module.so /usr/share/nginx/modules/
-sudo cp objs/ngx_http_headers_more_filter_module.so /usr/share/nginx/modules/
-# endregion
-
-# region Modsecurity-OWASP-CRS
-echo ""
-echo "************************************************************"
-echo "cloning ModSecurity core-rule-set"
-echo "************************************************************"
-echo ""
-cd /etc/nginx/modsec-crs || exit
-sudo git clone https://github.com/coreruleset/coreruleset /etc/nginx/modsec-crs
-sudo mv crs-setup.conf.example crs-setup.conf
-sudo mv rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf.example rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
-sudo mv rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf.example rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf
-sudo echo "$(cat /etc/nginx/modsec/main.conf)
-Include /etc/nginx/modsec-crs/crs-setup.conf
-#Include /etc/nginx/modsec-crs/plugins/*-config.conf
-#Include /etc/nginx/modsec-crs/plugins/*-before.conf
-Include /etc/nginx/modsec-crs/rules/*.conf
-#Include /etc/nginx/modsec-crs/plugins/*-after.conf" >/etc/nginx/modsec/main.conf
+# region Are you sure?
+notice "This script builds nginx with ModSecurity+CRS+HeaderMore+Lua support."
+notice "Nginx will be installed at ${PREFIX_NGINX}"
+notice "Packages Versions:"
+notice "    Nginx:                        ${VERSION_NGINX}"
+notice "    Nginx Devel Kit:              ${VERSION_NGX_DEVEL_KIT}"
+notice "    Lua Nginx Module:             ${VERSION_LUA_NGINX_MODULE}"
+notice "    Stream Lua Nginx Module:      ${VERSION_STREAM_LUA_NGINX_MODULE}"
+notice "    LUAJIT(openresty):            ${VERSION_LUAJIT}"
+notice "    Lua Resty Core:               ${VERSION_LUA_RESTY_CORE}"
+notice "    Lua Resty LruCache:           ${VERSION_LUA_RESTY_LRUCACHE}"
+notice "    Lua Resty LruCache:           ${VERSION_LUA_RESTY_LRUCACHE}"
+notice "    Modsecurity:                  ${VERSION_MODSECURITY}"
+notice "    Modsecurity Nginx Connector:  Latest (cant set version)"
+notice "    Modsecurity CoreRuleSet:      ${VERSION_MODSECURITY_CRS}"
+notice "    Headers More:                 ${VERSION_HEADERS_MORE}"
+notice "Proceed?"
+read -n1
 
 # endregion
 
-# region modify nginx.conf
-sudo echo "load_module modules/ngx_http_modsecurity_module.so;
-load_module modules/ngx_http_headers_more_filter_module.so;
-$(cat /etc/nginx/nginx.conf)" >/etc/nginx/nginx.conf
+# region Remove old nginx
+notice "Removing old nginx from system (if there is one)."
+notice "Proceed?"
+read -n1
+
+systemctl stop nginx
+apt-get --purge remove -y nginx* --allow-change-held-packages
+rm -rf /etc/nginx
+rm -rf /usr/share/nginx
+rm -rf /usr/local/nginx
+rm -rf /var/log/nginx
+# endregion
+
+# region prepare
+rm -rf "$PREFIX_NGINX" || die "Cannot remove old install directory"
+
+mkdir -pv "$PREFIX_NGINX" || die "Cannot create install directory"
+mkdir -pv "$PREFIX_DIR_DOWNLOAD" || die "Cannot create download directory"
+mkdir -pv "$PREFIX_DIR_BUILD" || die "Cannot create build directory"
+mkdir -pv "${PREFIX_NGINX}/tmp" || die "Cannot create nginx tmp directory"
+mkdir -pv "${PREFIX_NGINX}/modules" || die "Cannot create nginx modules directory"
+mkdir -pv "${PREFIX_NGINX}/modsec" || die "Cannot create nginx modsec directory"
+
+notice "Installing dependencies..."
+apt-get install dpkg-dev gcc make build-essential autoconf automake libtool libcurl4-openssl-dev \
+  liblua5.3-dev libfuzzy-dev ssdeep gettext pkg-config libpcre3 libpcre3-dev libxml2 libxml2-dev \
+  libcurl4 libgeoip-dev libyajl-dev doxygen uuid-dev zlib1g zlib1g-dev
+# endregion
+
+# region Download
+cd "$PREFIX_DIR_DOWNLOAD" || die
+dl nginx "https://github.com/nginx/nginx/archive/release-${VERSION_NGINX}.tar.gz" "nginx-${VERSION_NGINX}.tar.gz"
+dl luajit "https://github.com/openresty/luajit2/archive/v${VERSION_LUAJIT}.tar.gz" "luajit-${VERSION_LUAJIT}.tar.gz"
+dl ngx_devel_kit "https://github.com/vision5/ngx_devel_kit/archive/v${VERSION_NGX_DEVEL_KIT}.tar.gz" "ngx_devel_kit-${VERSION_NGX_DEVEL_KIT}.tar.gz"
+dl lua-nginx-module "https://github.com/openresty/lua-nginx-module/archive/v${VERSION_LUA_NGINX_MODULE}.tar.gz" "lua-nginx-module-${VERSION_LUA_NGINX_MODULE}.tar.gz"
+dl stream-lua-nginx-module "https://github.com/openresty/stream-lua-nginx-module/archive/v${VERSION_STREAM_LUA_NGINX_MODULE}.tar.gz" "stream-lua-nginx-module-${VERSION_STREAM_LUA_NGINX_MODULE}.tar.gz"
+dl lua-resty-core "https://github.com/openresty/lua-resty-core/archive/v${VERSION_LUA_RESTY_CORE}.tar.gz" "lua-resty-core-${VERSION_LUA_RESTY_CORE}.tar.gz"
+dl lua-resty-lrucache "https://github.com/openresty/lua-resty-lrucache/archive/v${VERSION_LUA_RESTY_LRUCACHE}.tar.gz" "lua-resty-lrucache-${VERSION_LUA_RESTY_LRUCACHE}.tar.gz"
+dl headers-more "https://github.com/openresty/headers-more-nginx-module/archive/refs/tags/v${VERSION_HEADERS_MORE}.tar.gz" "headers-more-${VERSION_HEADERS_MORE}.tar.gz"
+dl modsecurity "https://github.com/owasp-modsecurity/ModSecurity/releases/download/v3.0.13/modsecurity-v${VERSION_MODSECURITY}.tar.gz" "modsecurity-${VERSION_MODSECURITY}.tar.gz"
+dl modsecurity-crs "https://github.com/coreruleset/coreruleset/archive/refs/tags/v${VERSION_MODSECURITY_CRS}.tar.gz" "modsecurity-crs-${VERSION_MODSECURITY_CRS}.tar.gz"
+notice "Cloning modsecurity-nginx" && git clone --quiet --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git "modsecurity-nginx/"
 
 # endregion
-echo ""
-echo "************************************************************"
-echo "cloning ModSecurity core-rule-set"
-echo "************************************************************"
-echo ""
-echo "add these lines to http section"
-echo "  modsecurity on;"
-echo "  modsecurity_rules_file /etc/nginx/modsec/main.conf;"
+
+# region Unpacking
+cd "$PREFIX_DIR_BUILD" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/luajit-${VERSION_LUAJIT}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/nginx-${VERSION_NGINX}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/ngx_devel_kit-${VERSION_NGX_DEVEL_KIT}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-nginx-module-${VERSION_LUA_NGINX_MODULE}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/stream-lua-nginx-module-${VERSION_STREAM_LUA_NGINX_MODULE}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-resty-core-${VERSION_LUA_RESTY_CORE}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-resty-lrucache-${VERSION_LUA_RESTY_LRUCACHE}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/headers-more-${VERSION_HEADERS_MORE}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/modsecurity-${VERSION_MODSECURITY}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/modsecurity-crs-${VERSION_MODSECURITY_CRS}.tar.gz" || die
+cp -R "${PREFIX_DIR_DOWNLOAD}/modsecurity-nginx" "$PREFIX_DIR_BUILD" || die
+
+# endregion
+
+# region build luajit
+notice "Building luajit..."
+cd "${PREFIX_DIR_BUILD}/luajit2-${VERSION_LUAJIT}" || die
+sed -i -E "s|^(export PREFIX=\\s*).*$|\\1${PREFIX_LUAJIT}|g" Makefile || die "failed to patch luajit prefix"
+make -j"$(nproc)" &&
+  make install || die "failed to build luajit"
+
+# endregion
+
+# region build modsecurity
+notice "Building Modsecurity..."
+cd "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}" || die
+./build.sh &&
+  ./configure --prefix="$PREFIX_MODSECURITY" &&
+  make -j"$(nproc)" &&
+  make install || die "failed to build modsecurity"
+
+# endregion
+
+# region build nginx
+notice "Building nginx..."
+export LUAJIT_LIB="${PREFIX_LUAJIT}/lib"
+export LUAJIT_INC="${PREFIX_LUAJIT}/include/luajit-${VERSION_LUAJIT_MAJOR}"
+export MODSECURITY_LIB="${PREFIX_MODSECURITY}/lib"
+export MODSECURITY_INC="${PREFIX_MODSECURITY}/include"
+
+cd "${PREFIX_DIR_BUILD}/nginx-release-${VERSION_NGINX}" || die
+./auto/configure \
+  --prefix="${PREFIX_NGINX}" \
+  --conf-path="${PREFIX_NGINX}/conf/nginx.conf" \
+  --sbin-path="${PREFIX_NGINX}/sbin/nginx" \
+  --pid-path="${PREFIX_NGINX}/run/nginx.pid" \
+  --lock-path="${PREFIX_NGINX}/run/nginx.lock" \
+  --user=www-data \
+  --group=www-data \
+  --http-log-path="${PREFIX_NGINX}/logs/access.log" \
+  --error-log-path=stderr \
+  --http-client-body-temp-path="${PREFIX_NGINX}/tmp/client-body" \
+  --http-proxy-temp-path="${PREFIX_NGINX}/tmp/proxy" \
+  --http-fastcgi-temp-path="${PREFIX_NGINX}/tmp/fastcgi" \
+  --http-scgi-temp-path="${PREFIX_NGINX}/tmp/scgi" \
+  --http-uwsgi-temp-path="${PREFIX_NGINX}/tmp/uwsgi" \
+  --with-compat \
+  --with-debug \
+  --with-file-aio \
+  --with-http_addition_module \
+  --with-pcre-jit \
+  --with-http_ssl_module \
+  --with-http_stub_status_module \
+  --with-http_realip_module \
+  --with-http_auth_request_module \
+  --with-http_v2_module \
+  --with-http_dav_module \
+  --with-http_slice_module \
+  --with-threads \
+  --with-http_degradation_module \
+  --with-http_flv_module \
+  --with-http_geoip_module \
+  --with-http_gunzip_module \
+  --with-http_gzip_static_module \
+  --with-http_mp4_module \
+  --with-http_secure_link_module \
+  --with-http_sub_module \
+  --with-stream \
+  --with-stream_geoip_module \
+  --with-stream_realip_module \
+  --with-stream_ssl_module \
+  --with-stream_ssl_preread_module \
+  --with-ld-opt="-Wl,-z,origin -Wl,-rpath,'\$\$ORIGIN'/../luajit-${VERSION_LUAJIT}/lib" \
+  --modules-path="${PREFIX_NGINX}/modules" \
+  --with-http_random_index_module \
+  --with-http_image_filter_module \
+  --with-http_xslt_module \
+  --with-mail \
+  --with-mail_ssl_module \
+  --add-module="${_PATH_NGX_DEVEL_KIT}" \
+  --add-module="${_PATH_LUA_NGINX_MODULE}" \
+  --add-module="${_PATH_STREAM_LUA_NGINX_MODULE}" \
+  --add-module="${_PATH_MODSECURITY_NGINX_MODULE}" \
+  --add-module="${_PATH_HEADERS_MORE_MODULE}" &&
+  make -j"$(nproc)" &&
+  make install ||
+  die "failed to build nginx"
+
+strip -s "${PREFIX_NGINX}/sbin/nginx"
+cd ..
+
+# endregion
+
+# region install essential lua modules (required by lua-nginx-module)
+notice "Building lua-resty-core..."
+cd "${PREFIX_DIR_BUILD}/lua-resty-core-${VERSION_LUA_RESTY_CORE}" || die
+LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to install lua-resty-core"
+
+notice "Building lua-resty-lrucache..."
+cd "${PREFIX_DIR_BUILD}/lua-resty-lrucache-${VERSION_LUA_RESTY_LRUCACHE}" || die
+LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to install lua-resty-core"
+
+# endregion
+
+# region ModSecurity rules
+notice "Configuring modsecurity crs rules"
+cp "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}/unicode.mapping" "${PREFIX_NGINX}/modsec/" &&
+  cp "${PREFIX_DIR_BUILD}/modsecurity-v${VERSION_MODSECURITY}/modsecurity.conf-recommended" "${PREFIX_NGINX}/modsec/modsecurity.conf" || die "Cant copy modsecurity config files from build"
+echo "Include ${PREFIX_NGINX}/modsec/modsecurity.conf" >"${PREFIX_NGINX}/modsec/main.conf" || die "Cant create modsec main.conf"
+
+mv "${PREFIX_DIR_BUILD}/coreruleset-${VERSION_MODSECURITY_CRS}" "${PREFIX_NGINX}/modsec-crs" || die "Cant create modsec-crs directory"
+cd "${PREFIX_NGINX}/modsec-crs" || die "Cant create modsec-crs directory"
+mv crs-setup.conf.example crs-setup.conf &&
+  mv rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf.example rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf &&
+  mv rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf.example rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf &&
+  echo "$(cat "${PREFIX_NGINX}/modsec/main.conf")
+Include ${PREFIX_NGINX}/modsec-crs/crs-setup.conf
+#Include ${PREFIX_NGINX}/modsec-crs/plugins/*-config.conf
+#Include ${PREFIX_NGINX}/modsec-crs/plugins/*-before.conf
+Include ${PREFIX_NGINX}/modsec-crs/rules/*.conf
+#Include ${PREFIX_NGINX}/modsec-crs/plugins/*-after.conf" >"${PREFIX_NGINX}/modsec/main.conf" || die "Cant create modsec-crs needed rules files"
+
+# endregion
+
+# region patch nginx.conf
+cd "${PREFIX_NGINX}/conf" || die
+patch -p0 <<EOF
+--- nginx.conf
++++ nginx.conf
+@@ -14,7 +14,15 @@
+ }
 
 
-sudo nginx -t
-sudo apt-mark hold nginx
-sudo systemctl stop nginx
-#sudo systemctl start nginx
++stream {
++    lua_package_path '/usr/local/nginx/libs/luajit-2.1-20240815/lib/lua/5.1/?.lua;;';
++}
++
+ http {
++    lua_package_path '/usr/local/nginx/libs/luajit-2.1-20240815/lib/lua/5.1/?.lua;;';
++    modsecurity on;
++    modsecurity_rules_file /usr/local/nginx/modsec/main.conf;
++
+     include       mime.types;
+     default_type  application/octet-stream;
 
-echo ""
-echo "************************************************************"
-echo "Nginx+ModSecurity+CRS+HeaderMore Installed"
-echo "************************************************************"
+EOF
+
+# endregion
+
+# region handle ownership
+notice "Changing owner ship"
+sudo chown -R root:root "$PREFIX_NGINX"
+
+# endregion
+
+# region Link Executable
+notice "Linking nginx executable to system"
+ln -sf "${PREFIX_NGINX}/sbin/nginx" "/usr/sbin/nginx" || die "Failed linking nginx"
+
+# endregion
+
+# region Create Systemd config
+notice "Creating Systemd config"
+echo "# Stop dance for nginx
+# =======================
+#
+# ExecStop sends SIGQUIT (graceful stop) to the nginx process.
+# If, after 5s (--retry QUIT/5) nginx is still running, systemd takes control
+# and sends SIGTERM (fast shutdown) to the main process.
+# After another 5s (TimeoutStopSec=5), and if nginx is alive, systemd sends
+# SIGKILL to all the remaining processes in the process group (KillMode=mixed).
+#
+# nginx signals reference doc:
+# http://nginx.org/en/docs/control.html
+#
+[Unit]
+Description=A high performance web server and a reverse proxy server
+Documentation=man:nginx(8)
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=${PREFIX_NGINX}/run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t -q -g 'daemon on; master_process on;'
+ExecStart=/usr/sbin/nginx -g 'daemon on; master_process on;'
+ExecReload=/usr/sbin/nginx -g 'daemon on; master_process on;' -s reload
+ExecStop=-/sbin/start-stop-daemon --quiet --stop --retry QUIT/5 --pidfile ${PREFIX_NGINX}/run/nginx.pid
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target" >"/lib/systemd/system/nginx.service" || die "Cant create Systemd config"
+systemctl daemon-reload
+
+# endregion
+
+
+notice "Build complete. to start nginx run sudo systemctl start nginx"
+
 
