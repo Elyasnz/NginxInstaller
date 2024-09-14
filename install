@@ -286,9 +286,13 @@ sudo chown -R root:root "$PREFIX_NGINX"
 
 # endregion
 
-# region Link Executable
-notice "Linking nginx executable to system"
+# region Linking
+notice "Linking nginx executable"
 ln -sf "${PREFIX_NGINX}/sbin/nginx" "/usr/sbin/nginx" || die "Failed linking nginx"
+notice "Linking nginx conf"
+ln -sf "${PREFIX_NGINX}/conf" "/etc/nginx" || die "Failed linking nginx conf"
+notice "Linking nginx logs"
+ln -sf "${PREFIX_NGINX}/logs" "/var/log/nginx" || die "Failed linking nginx logs"
 
 # endregion
 
