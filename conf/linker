@@ -14,11 +14,11 @@ sudo mkdir -p /etc/nginx/sites-enabled/
 sudo ln -sf $SCRIPTPATH/sites/*.conf /etc/nginx/sites-available/
 sudo ln -sf $SCRIPTPATH/sites/*.conf /etc/nginx/sites-enabled/
 sudo ln -sf $SCRIPTPATH/ssl /etc/nginx/
-sudo ln -sf $SCRIPTPATH/modsec/bad-user-agents.txt /etc/nginx/modsec/bad-user-agents.txt
-sudo ln -sf $SCRIPTPATH/modsec/modsecurity.conf /etc/nginx/modsec/modsecurity.conf
+sudo mkdir -p /etc/nginx/modsec/
+sudo mkdir -p /etc/nginx/modsec-crs/rules
+sudo ln -sf $SCRIPTPATH/modsec/* /etc/nginx/modsec/
+sudo ln -sf $SCRIPTPATH/modsec-crs/* /etc/nginx/modsec-crs/rules/
 sudo ln -sf $SCRIPTPATH/html/* /var/www/html/
 
 
 echo "linker finished"
-
-
