@@ -164,6 +164,7 @@ export MODSECURITY_INC="${PREFIX_MODSECURITY}/include"
 
 cd "${PREFIX_DIR_BUILD}/nginx-release-${VERSION_NGINX}" || die
 ./auto/configure \
+   --without-pcre2 \
   --prefix="${PREFIX_NGINX}" \
   --conf-path="${PREFIX_NGINX}/conf/nginx.conf" \
   --sbin-path="${PREFIX_NGINX}/sbin/nginx" \
