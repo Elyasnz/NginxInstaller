@@ -20,6 +20,7 @@ VERSION_LUAJIT='2.1-20240815' # openresty
 VERSION_LUAJIT_MAJOR='2.1'
 VERSION_LUA_RESTY_CORE='0.1.29'
 VERSION_LUA_RESTY_LRUCACHE='0.14'
+VERSION_LUA_RESTY_REDIS='0.29'
 VERSION_MODSECURITY='3.0.13'
 VERSION_MODSECURITY_CRS='4.6.0'
 VERSION_HEADERS_MORE='0.37'
@@ -66,7 +67,7 @@ notice "    Stream Lua Nginx Module:      ${VERSION_STREAM_LUA_NGINX_MODULE}"
 notice "    LUAJIT(openresty):            ${VERSION_LUAJIT}"
 notice "    Lua Resty Core:               ${VERSION_LUA_RESTY_CORE}"
 notice "    Lua Resty LruCache:           ${VERSION_LUA_RESTY_LRUCACHE}"
-notice "    Lua Resty LruCache:           ${VERSION_LUA_RESTY_LRUCACHE}"
+notice "    Lua Resty Redis:              ${VERSION_LUA_RESTY_REDIS}"
 notice "    Modsecurity:                  ${VERSION_MODSECURITY}"
 notice "    Modsecurity Nginx Connector:  Latest (cant set version)"
 notice "    Modsecurity CoreRuleSet:      ${VERSION_MODSECURITY_CRS}"
@@ -113,6 +114,7 @@ dl lua-nginx-module "https://github.com/openresty/lua-nginx-module/archive/v${VE
 dl stream-lua-nginx-module "https://github.com/openresty/stream-lua-nginx-module/archive/v${VERSION_STREAM_LUA_NGINX_MODULE}.tar.gz" "stream-lua-nginx-module-${VERSION_STREAM_LUA_NGINX_MODULE}.tar.gz"
 dl lua-resty-core "https://github.com/openresty/lua-resty-core/archive/v${VERSION_LUA_RESTY_CORE}.tar.gz" "lua-resty-core-${VERSION_LUA_RESTY_CORE}.tar.gz"
 dl lua-resty-lrucache "https://github.com/openresty/lua-resty-lrucache/archive/v${VERSION_LUA_RESTY_LRUCACHE}.tar.gz" "lua-resty-lrucache-${VERSION_LUA_RESTY_LRUCACHE}.tar.gz"
+dl lua-resty-redis "https://github.com/openresty/lua-resty-redis/archive/refs/tags/v${VERSION_LUA_RESTY_REDIS}.tar.gz" "lua-resty-redis-${VERSION_LUA_RESTY_REDIS}.tar.gz"
 dl headers-more "https://github.com/openresty/headers-more-nginx-module/archive/refs/tags/v${VERSION_HEADERS_MORE}.tar.gz" "headers-more-${VERSION_HEADERS_MORE}.tar.gz"
 dl modsecurity "https://github.com/owasp-modsecurity/ModSecurity/releases/download/v3.0.13/modsecurity-v${VERSION_MODSECURITY}.tar.gz" "modsecurity-${VERSION_MODSECURITY}.tar.gz"
 dl modsecurity-crs "https://github.com/coreruleset/coreruleset/archive/refs/tags/v${VERSION_MODSECURITY_CRS}.tar.gz" "modsecurity-crs-${VERSION_MODSECURITY_CRS}.tar.gz"
@@ -129,6 +131,7 @@ tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-nginx-module-${VERSION_LUA_NGINX_MODULE}.tar
 tar -xf "${PREFIX_DIR_DOWNLOAD}/stream-lua-nginx-module-${VERSION_STREAM_LUA_NGINX_MODULE}.tar.gz" || die
 tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-resty-core-${VERSION_LUA_RESTY_CORE}.tar.gz" || die
 tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-resty-lrucache-${VERSION_LUA_RESTY_LRUCACHE}.tar.gz" || die
+tar -xf "${PREFIX_DIR_DOWNLOAD}/lua-resty-redis-${VERSION_LUA_RESTY_REDIS}.tar.gz" || die
 tar -xf "${PREFIX_DIR_DOWNLOAD}/headers-more-${VERSION_HEADERS_MORE}.tar.gz" || die
 tar -xf "${PREFIX_DIR_DOWNLOAD}/modsecurity-${VERSION_MODSECURITY}.tar.gz" || die
 tar -xf "${PREFIX_DIR_DOWNLOAD}/modsecurity-crs-${VERSION_MODSECURITY_CRS}.tar.gz" || die
@@ -232,7 +235,11 @@ LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to insta
 
 notice "Building lua-resty-lrucache..."
 cd "${PREFIX_DIR_BUILD}/lua-resty-lrucache-${VERSION_LUA_RESTY_LRUCACHE}" || die
-LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to install lua-resty-core"
+LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to install lua-resty-lrucache"
+
+notice "Building lua-resty-redis..."
+cd "${PREFIX_DIR_BUILD}/lua-resty-redis-${VERSION_LUA_RESTY_REDIS}" || die
+LUA_VERSION="5.1" PREFIX="${PREFIX_LUAJIT}" make install || die "failed to install lua-resty-redis"
 
 # endregion
 
@@ -294,6 +301,9 @@ notice "Linking nginx conf"
 ln -sf "${PREFIX_NGINX}/conf" "/etc/nginx" || die "Failed linking nginx conf"
 notice "Linking nginx logs"
 ln -sf "${PREFIX_NGINX}/logs" "/var/log/nginx" || die "Failed linking nginx logs"
+notice "Linking nginx run"
+rm -rf "${PREFIX_NGINX}/run" || die "Failed removing nginx run"
+ln -sf "/run" "${PREFIX_NGINX}/run" || die "Failed linking nginx run"
 
 # endregion
 
@@ -319,7 +329,7 @@ Wants=network-online.target
 
 [Service]
 Type=forking
-PIDFile=${PREFIX_NGINX}/run/nginx.pid
+PIDFile=/run/nginx.pid
 ExecStartPre=/usr/sbin/nginx -t -q -g 'daemon on; master_process on;'
 ExecStart=/usr/sbin/nginx -g 'daemon on; master_process on;'
 ExecReload=/usr/sbin/nginx -g 'daemon on; master_process on;' -s reload

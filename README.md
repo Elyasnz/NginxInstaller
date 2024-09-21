@@ -14,7 +14,7 @@ Note that you can change versions of all the modules (from the installation scri
 - LUAJIT(openresty)
 - Lua Resty Core
 - Lua Resty LruCache
-- Lua Resty LruCache
+- Lua Resty Redis
 - Modsecurity
 - Modsecurity Nginx Connector
 - Modsecurity CoreRuleSet
