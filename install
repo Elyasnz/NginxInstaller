@@ -345,9 +345,18 @@ systemctl daemon-reload
 
 notice "Build complete. to start nginx run sudo systemctl start nginx"
 
+notice ""
+notice "==========================================="
+notice "If you get any errors regarding luajit the reason is nginx is looking for luajit in system libraries '/lib/x86_64-linux-gnu/libluajit-5.1.so.2' "
+notice "instead of the newly installed luajit lib if this path is missing or pointing to other versions of luajit"
+notice "than the one installed you can run this to fix the issue"
+notice "sudo ln -sf ${PREFIX_LUAJIT}/lib/libluajit-5.1.so.2 /lib/x86_64-linux-gnu/libluajit-5.1.so.2"
+notice "==========================================="
+notice ""
+
 # region Remove installation files
 notice "Removing Installation files..."
-notice "Proceed?"
+notice "Proceed? [last step]"
 read -n1
 
 rm -rf $PREFIX_DIR_INSTALL
