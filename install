@@ -100,7 +100,7 @@ mkdir -pv "${PREFIX_NGINX}/tmp" || die "Cannot create nginx tmp directory"
 mkdir -pv "${PREFIX_NGINX}/conf/modsec" || die "Cannot create nginx modsec directory"
 
 notice "Installing dependencies..."
-apt-get install dpkg-dev gcc make build-essential autoconf automake libtool libcurl4-openssl-dev \
+apt-get install -y dpkg-dev gcc make build-essential autoconf automake libtool libcurl4-openssl-dev \
   liblua5.3-dev libfuzzy-dev ssdeep gettext pkg-config libpcre3 libpcre3-dev libxml2 libxml2-dev \
   libcurl4 libgeoip-dev libyajl-dev doxygen uuid-dev zlib1g zlib1g-dev
 # endregion
