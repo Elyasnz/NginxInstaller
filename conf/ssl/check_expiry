@@ -1,0 +1,41 @@
+#!/bin/bash
+
+BASE_DIR="/etc/nginx/ssl/"
+NOW=$(date +%s)
+# Threshold = 30 days (adjustable)
+THRESHOLD_DAYS=30
+THRESHOLD=$((NOW + THRESHOLD_DAYS * 24 * 60 * 60))
+
+echo "Checking certificates under $BASE_DIR ..."
+echo "------------------------------------------"
+
+find "$BASE_DIR" -type f -name "ssl.crt" | while read -r CERT; do
+    # Extract expiry date as UNIX time (seconds since epoch)
+    EXPIRY_SEC=$(openssl x509 -enddate -noout -in "$CERT" \
+        | cut -d= -f2 \
+        | xargs -I{} date -d "{}" +%s 2>/dev/null)
+
+    # If conversion failed, try using openssl in epoch format (more robust)
+    if [ -z "$EXPIRY_SEC" ]; then
+        EXPIRY_SEC=$(openssl x509 -dates -noout -in "$CERT" \
+            | grep notAfter \
+            | sed 's/notAfter=//g' \
+            | xargs -I{} date -d "{}" +%s 2>/dev/null)
+    fi
+
+    # If still empty, skip with an error
+    if [ -z "$EXPIRY_SEC" ]; then
+        echo "[ERROR] Could not read certificate expiry for $CERT"
+        continue
+    fi
+
+    # Compare times
+    if [ "$EXPIRY_SEC" -lt "$NOW" ]; then
+        echo "[EXPIRED]   $CERT (Expired on $(date -d @$EXPIRY_SEC))"
+    elif [ "$EXPIRY_SEC" -lt "$THRESHOLD" ]; then
+        echo "[EXPIRING]  $CERT (Expires on $(date -d @$EXPIRY_SEC))"
+    fi
+done
+
+echo "------------------------------------------"
+echo "Done."
